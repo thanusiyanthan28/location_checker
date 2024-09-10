@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { MapContainer, TileLayer, Marker, Circle, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -41,6 +41,23 @@ const DeliveryCheck = () => {
   const [isAlertVisible, setAlertVisible] = useState(false);
   const [selectedLocation, setSelectedLocation] = useState(null);
 
+  // Fallback using IP API
+  const getCurrentLocationFromIP = () => {
+    fetch('https://ipapi.co/json/')
+      .then(response => response.json())
+      .then(data => {
+        const currentLocation = [data.latitude, data.longitude];
+        console.log('Current Location from IP:', currentLocation);
+
+        // Update map center and selected location
+        setMapCenter(currentLocation);
+        setSelectedLocation(currentLocation);
+      })
+      .catch(error => {
+        console.error('Error fetching current location from IP:', error);
+      });
+  };
+
   // Function to handle current location click
   const handleLocationClick = () => {
     if (navigator.geolocation) {
@@ -49,23 +66,65 @@ const DeliveryCheck = () => {
           const { latitude, longitude } = position.coords;
           const currentLocation = [latitude, longitude];
 
+          console.log('Current Location:', currentLocation);
+
           // Update both map center and selected location
           setMapCenter(currentLocation);
           setSelectedLocation(currentLocation);
         },
         (error) => {
           console.error("Error fetching current location:", error);
+
+          // If error, fallback to IP-based location
+          getCurrentLocationFromIP();
+        },
+        {
+          enableHighAccuracy: true, // Enable high accuracy
+          timeout: 5000, // Set timeout to 5 seconds
+          maximumAge: 0 // Don't use cached location
         }
       );
     } else {
       alert("Geolocation is not supported by this browser.");
+      // Fallback if geolocation is not supported
+      getCurrentLocationFromIP();
     }
   };
+
+  // Periodically check current location to keep it updated
+  useEffect(() => {
+    const locationCheckInterval = setInterval(() => {
+      if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+          (position) => {
+            const { latitude, longitude } = position.coords;
+            const currentLocation = [latitude, longitude];
+
+            console.log('Auto-updated Location:', currentLocation);
+
+            // Update both map center and selected location
+            setMapCenter(currentLocation);
+            setSelectedLocation(currentLocation);
+          },
+          (error) => {
+            console.error("Error auto-updating current location:", error);
+          },
+          {
+            enableHighAccuracy: true, // Enable high accuracy
+            timeout: 5000, // Set timeout to 5 seconds
+            maximumAge: 0 // Don't use cached location
+          }
+        );
+      }
+    }, 30000); // Every 30 seconds check location
+
+    return () => clearInterval(locationCheckInterval); // Cleanup interval on component unmount
+  }, []);
 
   const sendLocationToBackend = () => {
     if (selectedLocation) {
       console.log("Selected Delivery Location:", selectedLocation); // Log the selected location
-  
+
       fetch('https://your-backend-url.com/api/delivery', {
         method: 'POST',
         headers: {
@@ -87,7 +146,6 @@ const DeliveryCheck = () => {
       alert('No delivery location selected.');
     }
   };
-  
 
   const MapUpdater = ({ center }) => {
     const map = useMap();
