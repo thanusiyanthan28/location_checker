@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { MapContainer, TileLayer, Marker, Circle, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -41,107 +41,71 @@ const DeliveryCheck = () => {
   const [isAlertVisible, setAlertVisible] = useState(false);
   const [selectedLocation, setSelectedLocation] = useState(null);
 
-  // Fallback using IP API
-  const getCurrentLocationFromIP = () => {
-    fetch('https://ipapi.co/json/')
+  // Function to get current location using browser geolocation API
+  const getCurrentLocation = () => {
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          const { latitude, longitude } = position.coords;
+          const currentLocation = [latitude, longitude];
+          console.log('Current Location (GPS):', currentLocation);
+          setMapCenter(currentLocation);
+          setSelectedLocation(currentLocation);
+        },
+        (error) => {
+          console.error("Error fetching current location:", error);
+          // If GPS fails, use Google Geolocation API as fallback
+          getCurrentLocationFromGoogle();
+        },
+        {
+          enableHighAccuracy: true, // Enable high accuracy
+          timeout: 10000, // Set timeout to 10 seconds
+          maximumAge: 0 // Don't use cached location
+        }
+      );
+    } else {
+      alert("Geolocation is not supported by this browser.");
+      // Fallback to Google API
+      getCurrentLocationFromGoogle();
+    }
+  };
+
+  // Fallback using Google Geolocation API
+  const getCurrentLocationFromGoogle = () => {
+    fetch(`https://www.googleapis.com/geolocation/v1/geolocate?key=YOUR_GOOGLE_API_KEY`, {
+      method: 'POST',
+    })
       .then(response => response.json())
       .then(data => {
-        const currentLocation = [data.latitude, data.longitude];
-        console.log('Current Location from IP:', currentLocation);
+        const currentLocation = [data.location.lat, data.location.lng];
+        console.log('Current Location (Google):', currentLocation);
 
         // Update map center and selected location
         setMapCenter(currentLocation);
         setSelectedLocation(currentLocation);
       })
       .catch(error => {
-        console.error('Error fetching current location from IP:', error);
+        console.error('Error fetching current location from Google:', error);
       });
   };
 
-  // Function to handle current location click
   const handleLocationClick = () => {
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          const { latitude, longitude } = position.coords;
-          const currentLocation = [latitude, longitude];
+    getCurrentLocation();
+  };
 
-          console.log('Current Location:', currentLocation);
-
-          // Update both map center and selected location
-          setMapCenter(currentLocation);
-          setSelectedLocation(currentLocation);
-        },
-        (error) => {
-          console.error("Error fetching current location:", error);
-
-          // If error, fallback to IP-based location
-          getCurrentLocationFromIP();
-        },
-        {
-          enableHighAccuracy: true, // Enable high accuracy
-          timeout: 5000, // Set timeout to 5 seconds
-          maximumAge: 0 // Don't use cached location
-        }
-      );
+  const openLocationInGoogleMaps = () => {
+    if (selectedLocation) {
+      const googleMapsUrl = `https://www.google.com/maps?q=${selectedLocation[0]},${selectedLocation[1]}`;
+      window.open(googleMapsUrl, '_blank'); // Open in a new tab
     } else {
-      alert("Geolocation is not supported by this browser.");
-      // Fallback if geolocation is not supported
-      getCurrentLocationFromIP();
+      alert('No delivery location selected.');
     }
   };
 
-  // Periodically check current location to keep it updated
-  useEffect(() => {
-    const locationCheckInterval = setInterval(() => {
-      if (navigator.geolocation) {
-        navigator.geolocation.getCurrentPosition(
-          (position) => {
-            const { latitude, longitude } = position.coords;
-            const currentLocation = [latitude, longitude];
-
-            console.log('Auto-updated Location:', currentLocation);
-
-            // Update both map center and selected location
-            setMapCenter(currentLocation);
-            setSelectedLocation(currentLocation);
-          },
-          (error) => {
-            console.error("Error auto-updating current location:", error);
-          },
-          {
-            enableHighAccuracy: true, // Enable high accuracy
-            timeout: 5000, // Set timeout to 5 seconds
-            maximumAge: 0 // Don't use cached location
-          }
-        );
-      }
-    }, 30000); // Every 30 seconds check location
-
-    return () => clearInterval(locationCheckInterval); // Cleanup interval on component unmount
-  }, []);
-
-  const sendLocationToBackend = () => {
+  const showRouteInGoogleMaps = () => {
     if (selectedLocation) {
-      console.log("Selected Delivery Location:", selectedLocation); // Log the selected location
-
-      fetch('https://your-backend-url.com/api/delivery', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          latitude: selectedLocation[0],
-          longitude: selectedLocation[1],
-        }),
-      })
-        .then(response => response.json())
-        .then(data => {
-          console.log('Success:', data);
-        })
-        .catch((error) => {
-          console.error('Error:', error);
-        });
+      const googleMapsDirectionsUrl = `https://www.google.com/maps/dir/?api=1&origin=${center[0]},${center[1]}&destination=${selectedLocation[0]},${selectedLocation[1]}&travelmode=driving`;
+      window.open(googleMapsDirectionsUrl, '_blank'); // Open in a new tab
     } else {
       alert('No delivery location selected.');
     }
@@ -183,7 +147,8 @@ const DeliveryCheck = () => {
         <MapUpdater center={mapCenter} />
       </MapContainer>
       <button onClick={handleLocationClick}>Use Current Location</button>
-      <button onClick={sendLocationToBackend}>Submit Delivery Location</button>
+      <button onClick={openLocationInGoogleMaps}>Submit Delivery Location</button>
+      <button onClick={showRouteInGoogleMaps}>Route</button>
       {isAlertVisible && <div className="alert">Delivery address is outside the 1-mile radius.</div>}
     </div>
   );
