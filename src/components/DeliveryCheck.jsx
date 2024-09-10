@@ -1,4 +1,3 @@
-// DeliveryCheck.js
 import React, { useState } from 'react';
 import { MapContainer, TileLayer, Marker, Circle, useMap } from 'react-leaflet';
 import L from 'leaflet';
@@ -42,12 +41,17 @@ const DeliveryCheck = () => {
   const [isAlertVisible, setAlertVisible] = useState(false);
   const [selectedLocation, setSelectedLocation] = useState(null);
 
+  // Function to handle current location click
   const handleLocationClick = () => {
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
         (position) => {
           const { latitude, longitude } = position.coords;
-          setMapCenter([latitude, longitude]);
+          const currentLocation = [latitude, longitude];
+
+          // Update both map center and selected location
+          setMapCenter(currentLocation);
+          setSelectedLocation(currentLocation);
         },
         (error) => {
           console.error("Error fetching current location:", error);
@@ -60,6 +64,8 @@ const DeliveryCheck = () => {
 
   const sendLocationToBackend = () => {
     if (selectedLocation) {
+      console.log("Selected Delivery Location:", selectedLocation); // Log the selected location
+  
       fetch('https://your-backend-url.com/api/delivery', {
         method: 'POST',
         headers: {
@@ -81,6 +87,7 @@ const DeliveryCheck = () => {
       alert('No delivery location selected.');
     }
   };
+  
 
   const MapUpdater = ({ center }) => {
     const map = useMap();
@@ -98,6 +105,7 @@ const DeliveryCheck = () => {
   return (
     <div className="delivery-check">
       <MapContainer
+        id="map"
         center={mapCenter}
         zoom={15}
         style={{ height: '400px', width: '100%' }}
@@ -108,7 +116,7 @@ const DeliveryCheck = () => {
         />
         <Circle center={center} radius={radius} color="blue" fillOpacity={0.2} />
         <Marker position={center} icon={customIcon} />
-        <Marker position={mapCenter} icon={customIcon} />
+        {selectedLocation && <Marker position={selectedLocation} icon={customIcon} />}
         <DistanceCalculator
           setMapCenter={setMapCenter}
           setAlertVisible={setAlertVisible}
