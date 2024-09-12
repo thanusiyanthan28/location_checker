@@ -7,9 +7,17 @@ import './DeliveryCheck.css';
 const center = [51.4457991, -0.165856]; // Your pizza shop location
 const radius = 1609.34; // 1 mile in meters
 
-// Create a custom icon
-const customIcon = new L.Icon({
-  iconUrl: '/pizza-icon.png', // Path to your icon image
+// Create a custom icon for the pizza shop
+const pizzaShopIcon = new L.Icon({
+  iconUrl: 'https://cdn-icons-png.flaticon.com/512/3595/3595455.png', // External pizza shop icon image URL
+  iconSize: [32, 32], // Size of the icon
+  iconAnchor: [16, 32], // Point of the icon which will correspond to marker's location
+  popupAnchor: [0, -32] // Point from which the popup should open relative to the iconAnchor
+});
+
+// Create a custom icon for the selected delivery location
+const locationIcon = new L.Icon({
+  iconUrl: 'https://cdn-icons-png.flaticon.com/512/684/684908.png', // External location marker icon URL
   iconSize: [32, 32], // Size of the icon
   iconAnchor: [16, 32], // Point of the icon which will correspond to marker's location
   popupAnchor: [0, -32] // Point from which the popup should open relative to the iconAnchor
@@ -40,6 +48,7 @@ const DeliveryCheck = () => {
   const [mapCenter, setMapCenter] = useState(center);
   const [isAlertVisible, setAlertVisible] = useState(false);
   const [selectedLocation, setSelectedLocation] = useState(null);
+  const [address, setAddress] = useState('');
 
   // Function to get current location using browser geolocation API
   const getCurrentLocation = () => {
@@ -54,8 +63,6 @@ const DeliveryCheck = () => {
         },
         (error) => {
           console.error("Error fetching current location:", error);
-          // If GPS fails, use Google Geolocation API as fallback
-          getCurrentLocationFromGoogle();
         },
         {
           enableHighAccuracy: true, // Enable high accuracy
@@ -65,38 +72,43 @@ const DeliveryCheck = () => {
       );
     } else {
       alert("Geolocation is not supported by this browser.");
-      // Fallback to Google API
-      getCurrentLocationFromGoogle();
     }
   };
 
-  // Fallback using Google Geolocation API
-  const getCurrentLocationFromGoogle = () => {
-    fetch(`https://www.googleapis.com/geolocation/v1/geolocate?key=YOUR_GOOGLE_API_KEY`, {
-      method: 'POST',
-    })
-      .then(response => response.json())
-      .then(data => {
-        const currentLocation = [data.location.lat, data.location.lng];
-        console.log('Current Location (Google):', currentLocation);
-
-        // Update map center and selected location
-        setMapCenter(currentLocation);
-        setSelectedLocation(currentLocation);
-      })
-      .catch(error => {
-        console.error('Error fetching current location from Google:', error);
-      });
+  // Fetch the address using Nominatim API (OpenStreetMap)
+  const getAddressFromCoordinates = () => {
+    if (selectedLocation) {
+      const [lat, lng] = selectedLocation;
+      fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`)
+        .then(response => response.json())
+        .then(data => {
+          if (data && data.display_name) {
+            const userAddress = data.display_name;
+            setAddress(userAddress);
+            alert(`Selected Address: ${userAddress}`);
+            console.log(userAddress)
+          } else {
+            alert('Address not found.');
+          }
+        })
+        .catch(error => {
+          console.error('Error fetching address from Nominatim:', error);
+        });
+    } else {
+      alert('No delivery location selected.');
+    }
   };
 
   const handleLocationClick = () => {
     getCurrentLocation();
   };
 
-  const openLocationInGoogleMaps = () => {
+  const openLocationInGoogleMaps = (userAddress) => {
     if (selectedLocation) {
       const googleMapsUrl = `https://www.google.com/maps?q=${selectedLocation[0]},${selectedLocation[1]}`;
-      window.open(googleMapsUrl, '_blank'); // Open in a new tab
+      console.log(selectedLocation)
+     
+      //window.open(googleMapsUrl, '_blank'); // Open in a new tab
     } else {
       alert('No delivery location selected.');
     }
@@ -137,8 +149,8 @@ const DeliveryCheck = () => {
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
         />
         <Circle center={center} radius={radius} color="blue" fillOpacity={0.2} />
-        <Marker position={center} icon={customIcon} />
-        {selectedLocation && <Marker position={selectedLocation} icon={customIcon} />}
+        <Marker position={center} icon={pizzaShopIcon} />
+        {selectedLocation && <Marker position={selectedLocation} icon={locationIcon} />}
         <DistanceCalculator
           setMapCenter={setMapCenter}
           setAlertVisible={setAlertVisible}
@@ -149,6 +161,7 @@ const DeliveryCheck = () => {
       <button onClick={handleLocationClick}>Use Current Location</button>
       <button onClick={openLocationInGoogleMaps}>Submit Delivery Location</button>
       <button onClick={showRouteInGoogleMaps}>Route</button>
+      <button onClick={getAddressFromCoordinates}>Address</button>
       {isAlertVisible && <div className="alert">Delivery address is outside the 1-mile radius.</div>}
     </div>
   );
